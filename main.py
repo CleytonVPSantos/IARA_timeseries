@@ -1,13 +1,31 @@
 import utils
 import matplotlib.pyplot as plt
 import numpy as np
-import csv
 from scipy.stats import kurtosis
 from scipy.stats import kstest, norm
 
 
 time_divisions = {"sem", "mes"}
-postos = ["SOBRADINHO", "MACHADINHO"]
+
+postos = ["14 DE JULHO", "A. VERMELHA", "AIMORES", "ANTA", "APOLONIO SALES", "B. BONITA", "B.COQUEIROS", "BAGUARI", "BAIXO IGUACU", "BALBINA", 
+        "BARIRI", "BARRA BRAUNA", "BARRA GRANDE", "BATALHA", "BELO MONTE", "BILL E PEDRAS", "BILLINGS", "BLANG", "BOA ESPERANÃA", "C. DOURADA", 
+        "C.BRANCO-1", "C.BRANCO-2", "CACHOEIRA CALDEIRAO", "CACONDE", "CACU", "CAMARGOS", "CAMPOS NOVOS", "CANA BRAVA", "CANAL P. BARRETO", 
+        "CANASTRA", "CANDONGA", "CANOAS I", "CANOAS II", "CAPANEMA", "CAPIVARA", "CASTRO ALVES", "CHAVANTES", "COARACY NUNES", "COLIDER", 
+        "CORUMBA", "CORUMBA-3", "CORUMBA-4", "CURUA-UNA", "D. FRANCISCA", "DARDANELOS", "DIVISA", "E. DA CUNHA", "EDGARD SOUZA", "EMBORCAÃÃO", 
+        "ERNESTINA", "ESPORA", "ESTREITO", "FERREIRA GOMES", "FONTES", "FOZ CHAPECO", "FOZ DO RIO CLARO", "FUNDÃO", "FUNIL", "FUNIL-MG", "FURNAS", 
+        "G. B. MUNHOZ", "G. P. SOUZA", "GARIBALDI", "GOV JAYME CANET JR", "GUAPORE", "GUARAPIRANGA", "GUILM. AMORIM", "HENRY BORDEN", "I. SOLTEIRA", 
+        "IBITINGA", "IGARAPAVA", "ILHA + T. IRMÃOS", "ILHA POMBOS", "IRAPE", "ITAIPU", "ITAPARICA", "ITAPEBI", "ITAUBA", "ITIQUIRA I", "ITIQUIRA II", 
+        "ITUMBIARA", "ITUTINGA", "ITÃ", "JACUI", "JAGUARA", "JAGUARI", "JAURU", "JIRAU", "JORDÃO", "JUPIA", "JURUENA", "JURUMIRIM", "L. C. BARRETO", 
+        "LAJEADO", "LAJES", "LIMOEIRO", "LUIZ GONZAGA", "M. MORAES", "MACHADINHO", "MANSO", "MARIMBONDO", "MASCARENHAS", "MAUA", "MIRANDA", "MONJOLINHO", 
+        "MONTE CLARO", "MOXOTO", "N. AVANHANDAVA", "NILO PEÃANHA", "NOVA PONTE", "OURINHOS", "P. AFONSO 1,2,3", "P. AFONSO 4", "P. COLOMBIA", "PARAIBUNA", 
+        "PARANAPANEMA", "PASSO FUNDO", "PASSO REAL", "PASSO SAO JOAO", "PEDRA DO CAVALO", "PEDRAS", "PEIXE ANGICAL", "PEREIRA PASSOS", "PICADA", "PIMENTAL", 
+        "PIRAJU", "PONTE DE PEDRA", "PONTE NOVA", "PORTO ESTRELA", "PORTO PRIMAVERA", "PROMISSÃO", "QUEBRA QUEIXO", "QUEIMADO", "R-11", "RETIRO BAIXO", 
+        "RIO BONITO", "RONDON II", "ROSAL", "ROSANA", "S.DO FACÃO", "S.R.VERDINHO", "SA CARVALHO", "SALTO", "SALTO APIACAS", "SALTO CAXIAS", "SALTO GRANDE CM", 
+        "SALTO GRANDE CS", "SALTO OSORIO", "SALTO PILAO", "SALTO RS", "SALTO SANTIAGO", "SAMUEL", "SANTA BRANCA", "SANTA CECILIA", "SANTA CLARA-PR", "SANTANA", 
+        "SANTO ANTONIO", "SANTONIO CM", "SAO DOMINGOS", "SAO JOSE", "SAO MANOEL", "SAO ROQUE", "SAO SALVADOR", "SEGREDO", "SERRA DA MESA", "SIMPLICIO", "SINOP", 
+        "SOBRADINHO", "SOBRADINHO INCR", "SOBRAGI", "STA.CLARA-MG", "STO ANTONIO DO JARI", "SUIÃA", "SÃO SIMÃO", "TAQUARUÃU", "TELES PIRES", "TIBAGI MONTANTE", 
+        "TOCOS", "TRÃS IRMÃOS", "TRÃS MARIAS", "TUCURUI", "VIGARIO", "VOLTA GRANDE", "XINGO"]
+
 lenghts = {"dia": 365, "sem": 52, "mes": 12, "est": 4}
 harmonics = 3
 ar_p = 2
@@ -82,12 +100,16 @@ def pipeline(posto, time_division, model):
 def main():
     for time_division in time_divisions:
         for posto in postos:
-            print("EXTRAINDO DADOS")
+            print(f"EXTRAINDO DADOS - {posto}, {time_division}")
             utils.extract_data(posto)
-            for i in range(4):
-                print(f"RODANDO MODELO {i+1}")
-                model_output = pipeline(posto, time_division, i)
-                filename = "model" + str(i+1) + "_" + time_division + ".csv"
-                utils.save_to_csv(model_output, filename, posto)
+            for i in range(1,5):
+                print(f"RODANDO MODELO {i}")
+                try:
+                    model_output = pipeline(posto, time_division, i)
+                    filename = "model" + str(i) + "_" + time_division + ".csv"
+                    utils.save_to_csv(model_output, filename, posto)
+                except ValueError: 
+                    print("Erro! Entrada contem NaN")
+                
             
 main()

@@ -5,9 +5,9 @@ from scipy.stats import kurtosis
 from scipy.stats import kstest, norm
 
 
-time_divisions = {"sem", "mes"}
+time_divisions = {"sem"}
 
-postos = ["14 DE JULHO", "A. VERMELHA", "AIMORES", "ANTA", "APOLONIO SALES", "B. BONITA", "B.COQUEIROS", "BAGUARI", "BAIXO IGUACU", "BALBINA", 
+"""postos = ["14 DE JULHO", "A. VERMELHA", "AIMORES", "ANTA", "APOLONIO SALES", "B. BONITA", "B.COQUEIROS", "BAGUARI", "BAIXO IGUACU", "BALBINA", 
         "BARIRI", "BARRA BRAUNA", "BARRA GRANDE", "BATALHA", "BELO MONTE", "BILL E PEDRAS", "BILLINGS", "BLANG", "BOA ESPERANÃA", "C. DOURADA", 
         "C.BRANCO-1", "C.BRANCO-2", "CACHOEIRA CALDEIRAO", "CACONDE", "CACU", "CAMARGOS", "CAMPOS NOVOS", "CANA BRAVA", "CANAL P. BARRETO", 
         "CANASTRA", "CANDONGA", "CANOAS I", "CANOAS II", "CAPANEMA", "CAPIVARA", "CASTRO ALVES", "CHAVANTES", "COARACY NUNES", "COLIDER", 
@@ -24,13 +24,15 @@ postos = ["14 DE JULHO", "A. VERMELHA", "AIMORES", "ANTA", "APOLONIO SALES", "B.
         "SALTO GRANDE CS", "SALTO OSORIO", "SALTO PILAO", "SALTO RS", "SALTO SANTIAGO", "SAMUEL", "SANTA BRANCA", "SANTA CECILIA", "SANTA CLARA-PR", "SANTANA", 
         "SANTO ANTONIO", "SANTONIO CM", "SAO DOMINGOS", "SAO JOSE", "SAO MANOEL", "SAO ROQUE", "SAO SALVADOR", "SEGREDO", "SERRA DA MESA", "SIMPLICIO", "SINOP", 
         "SOBRADINHO", "SOBRADINHO INCR", "SOBRAGI", "STA.CLARA-MG", "STO ANTONIO DO JARI", "SUIÃA", "SÃO SIMÃO", "TAQUARUÃU", "TELES PIRES", "TIBAGI MONTANTE", 
-        "TOCOS", "TRÃS IRMÃOS", "TRÃS MARIAS", "TUCURUI", "VIGARIO", "VOLTA GRANDE", "XINGO"]
+        "TOCOS", "TRÃS IRMÃOS", "TRÃS MARIAS", "TUCURUI", "VIGARIO", "VOLTA GRANDE", "XINGO"]"""
+
+postos = ["SOBRADINHO"]
 
 lenghts = {"dia": 365, "sem": 52, "mes": 12, "est": 4}
 harmonics = 3
 ar_p = 2
 years = 24
-number_of_samples = 1
+number_of_samples = 100
 
 
 def pipeline(posto, time_division, model):
@@ -66,18 +68,26 @@ def pipeline(posto, time_division, model):
     period_kurtosis = np.zeros(T)
     period_ks_stats = np.zeros(T)
     period_ks_p = np.zeros(T)
+    predictions = np.zeros_like(inflow_by_period)
     for _ in range(number_of_samples):
         future_prediction = utils.simple_ar_p_future(deseasonalized_inflow, ar_coef, est_residuals_std, T, years, ar_p)
         future_prediction = future_prediction.reshape((years, T))
+        predictions = np.vstack((predictions, future_prediction))
         period_mean += np.mean(future_prediction, axis=0) / T
         period_std += np.std(future_prediction, ddof=1, axis=0) / T
         period_kurtosis += kurtosis(future_prediction, axis=0) / T
         period_ks_stats += [kstest(future_prediction[:, period], inflow_by_period[:, period])[0] / T for period in range(T)]
         period_ks_p += [kstest(future_prediction[:, period], inflow_by_period[:, period])[1] / T for period in range(T)] 
 
+    predictions = predictions[years:]
     residuals_mean = np.mean(residuals)
     residuals_kurtosis = kurtosis(residuals)
     residuals_ks_stats, residuals_ks_p = kstest(residuals, 'norm', args=(0, est_residuals_std))
+
+    utils.sample_vs_normal(residuals, n, residuals_ks_p)
+    utils.compare_histogram(predictions[:,0], inflow_by_period[:,0], n, period_ks_p[0])
+    utils.compare_histogram(predictions[:,7], inflow_by_period[:,7], n, period_ks_p[7])
+    
 
     return {"ar_coef": ar_coef, 
             "inflow_fourier_coef": fourier_coef, 
@@ -110,6 +120,6 @@ def main():
                     utils.save_to_csv(model_output, filename, posto)
                 except ValueError: 
                     print("Erro! Entrada contem NaN")
-                
-            
+
+
 main()

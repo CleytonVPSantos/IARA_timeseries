@@ -116,6 +116,7 @@ def inflow_fourier_predict(inflow, n, T, N):
     model.fit(fourier_matrix, inflow)
     inflow_fourier_pred = model.predict(fourier_matrix)
     residuals = inflow - inflow_fourier_pred
+    print(model.intercept_)
     return inflow_fourier_pred, residuals, np.square(residuals).mean, model.coef_
 
 
@@ -263,3 +264,65 @@ def save_to_csv(data, filename, posto):
     except Exception as e:
         print(f"Erro ao salvar os dados no arquivo CSV: {e}")
 
+
+      
+def sample_vs_normal(data, n, p_value):
+    # IQR
+    q1 = np.percentile(data, 25)
+    q3 = np.percentile(data, 75)
+    iqr = q3 - q1
+    h = 2 * iqr * n **(-1/3)
+
+    # tamanho otimo do bin
+    range = np.max(data) - np.min(data)
+    opt_bin = int(range // h)
+
+    mu = np.mean(data)
+    sigma = np.std(data, ddof=1)
+    x = np.linspace(mu - 4*sigma, mu + 4*sigma, 1000)
+    pdf = norm.pdf(x, mu, sigma)
+
+    plt.figure(figsize=(8, 4))
+    plt.hist(data, bins=opt_bin, density=True, color='lightblue', edgecolor='black', label='Histograma da amostra')
+    plt.plot(x, pdf, 'r-', lw=2, label='PDF Normal')
+    plt.xlabel("Vazão (m³/s)")
+    plt.ylabel("Densidade")
+    plt.title(f"Amostra vs Normal (mesma média e desvio padrão) (p valor = {p_value})")
+    plt.grid(True, linestyle=':', linewidth=0.25)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    stat, p_value = kstest(data, 'norm', args=(mu, sigma))
+    print(f'Estatística (KS): {stat:.4f}, p-valor: {p_value:.4f}')
+
+
+def compare_histogram(data1, data2, n, p_value):        
+    # IQR
+    q1 = np.percentile(data1, 25)
+    q3 = np.percentile(data1, 75)
+    iqr = q3 - q1
+    h = 2 * iqr * n **(-1/3)
+
+    # tamanho otimo do bin
+    range = np.max(data1) - np.min(data1)
+    opt_bin1 = int(range // h)
+
+    # IQR
+    q1 = np.percentile(data2, 25)
+    q3 = np.percentile(data2, 75)
+    iqr = q3 - q1
+    h = 2 * iqr * n **(-1/3)
+
+    # tamanho otimo do bin
+    range = np.max(data2) - np.min(data2)
+    opt_bin2 = int(range // h)
+
+    plt.hist(data1, bins=opt_bin1, color='blue', edgecolor='black')
+    plt.hist(data2, bins=opt_bin2, color='red', edgecolor='black')
+    plt.xlabel("Vazão (m³/s)")
+    plt.ylabel("Frequência")
+    plt.title(f"Distribuiçoes (p valor = {p_value})")
+    plt.grid(True, linestyle=':', linewidth=0.25)
+    plt.tight_layout()
+    plt.show()

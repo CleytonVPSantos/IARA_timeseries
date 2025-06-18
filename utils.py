@@ -41,7 +41,7 @@ def extract_data(reservoir):
                 "DADOS_HIDROLOGICOS_RES_2024"
                 ]
 
-    dh = [pd.read_csv(f"{filename}.csv", sep=';') for filename in filenames]
+    dh = [pd.read_csv(f"data/{filename}.csv", sep=';') for filename in filenames]
 
     # Filtrar o reservatório
     data = [df[df['nom_reservatorio'] == reservoir] for df in dh]
@@ -51,7 +51,7 @@ def extract_data(reservoir):
 
     path = "./"
     dir_list = os.listdir(path) 
-    names = [reservoir + '_' + T + '.csv' for T in group_by]
+    names = ['data/hidro/' + reservoir + '_' + T + '.csv' for T in group_by]
 
     for i in range(len(periods)):
         data_by_year = []
@@ -91,7 +91,7 @@ def extract_data(reservoir):
 
 # carrega os dados a partir do nome do reservatório e unidade de tempo
 def load_data(reservoir, group_by):
-    inflow = pd.read_csv(reservoir + "_" + group_by + ".csv", sep=';')["val_vazaoincremental"].to_numpy()
+    inflow = pd.read_csv('data/hidro/' + reservoir + "_" + group_by + ".csv", sep=';')["val_vazaoincremental"].to_numpy()
     n = len(inflow)
     T = int(n / years)
 
@@ -130,8 +130,8 @@ def mean_and_std(data, periods):
 # ajusta fourier no desvio padrão dos residuos
 def fourier_residuals_std(deseasonalized_inflow, n, T, N):
     residuals_std = mean_and_std(deseasonalized_inflow, T)[1]
-    residuals_fourier_pred = inflow_fourier_predict(residuals_std, n, T, N)[0]
-    return residuals_fourier_pred
+    residuals_fourier_pred, _, _, std_fourier_coef  = inflow_fourier_predict(residuals_std, n, T, N)
+    return residuals_fourier_pred, std_fourier_coef
 
 
 # retorna residuos padronizados e o vetor com os desvios padrao
@@ -188,16 +188,14 @@ def inflow_periodic_ar_predict(residuals, n, T, p):
     residuals_ar_predict = np.hstack((residuals[:p], model.predict(ar_regression_matrix)))
     final_residuals = residuals - residuals_ar_predict
 
-    residuals_std_b = np.std(final_residuals.reshape((years, T)), axis=0, ddof=1)
+    residuals_std_b = np.std(final_residuals)
     sq_error = np.square(final_residuals).mean()
     
     return residuals_ar_predict, final_residuals, model.coef_, sq_error, residuals_std_b
 
 
-import numpy as np
-
-def simple_ar_p_future(final_data, phi, sigma, T, additional_years, p):
-    current_data = list(final_data[-p:])
+def simple_ar_p_future(data, phi, sigma, T, additional_years, p):
+    current_data = list(data[-p:])
     future_residuals = []
 
     total_forecast_steps = additional_years * T
@@ -213,10 +211,11 @@ def simple_ar_p_future(final_data, phi, sigma, T, additional_years, p):
         current_data.pop(0)
         current_data.append(next_val)
 
-    return future_residuals
+    return np.array(future_residuals)
 
-def periodic_ar_p_future(final_data: list | np.ndarray, phi: list | np.ndarray, sigma: list | np.ndarray, T: int, additional_years: int, p: int, last_observed_period_idx: int) -> list:
-    current_data = list(final_data[-p:])
+
+def periodic_ar_p_future(data, phi, sigma, T, additional_years, p, last_observed_period_idx):
+    current_data = list(data[-p:])
     future_residuals = []
 
     total_forecast_steps = additional_years * T
@@ -236,4 +235,31 @@ def periodic_ar_p_future(final_data: list | np.ndarray, phi: list | np.ndarray, 
         current_data.pop(0)
         current_data.append(next_val)
 
-    return future_residuals
+    return np.array(future_residuals)
+
+
+def save_to_csv(data, filename, posto):
+    to_csv = {"posto": posto} 
+
+    for key, value in data.items():
+        if isinstance(value, (list, np.ndarray)):
+            if key in ["ar_coef", "inflow_fourier_coef", "std_fourier_coef"]:
+                for i, coef in enumerate(value):
+                    to_csv[f"{key}_{i + 1}"] = coef
+            elif key in ["period_mean", "period_std", "period_kurtosis", "period_ks_stats", "period_ks_p"]:
+                for i, p_val in enumerate(value):
+                    to_csv[f"period_{i + 1}_{'_'.join(key.split('_')[1:])}"] = p_val
+            else:
+                to_csv[key] = str(value)
+        else:
+            to_csv[key] = value
+
+    df = pd.DataFrame([to_csv])
+
+    try:
+        file_exists = os.path.exists(filename)
+        df.to_csv(filename, mode='a', header=not file_exists, index=False)
+        print(f"Dados salvos com sucesso em '{filename}'")
+    except Exception as e:
+        print(f"Erro ao salvar os dados no arquivo CSV: {e}")
+

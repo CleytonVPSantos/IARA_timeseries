@@ -109,14 +109,13 @@ def create_fourier_matrix(t, T, harmonics):
 
 
 def inflow_fourier_predict(inflow, n, T, N):
-    model = LinearRegression()
+    model = LinearRegression(fit_intercept=False)
     time = np.arange(n)
     
     fourier_matrix = create_fourier_matrix(time, T, N)
     model.fit(fourier_matrix, inflow)
     inflow_fourier_pred = model.predict(fourier_matrix)
     residuals = inflow - inflow_fourier_pred
-    print(model.intercept_)
     return inflow_fourier_pred, residuals, np.square(residuals).mean, model.coef_
 
 
@@ -153,7 +152,7 @@ def least_squares_ar_fit(residuals, n, p):
     predict = residuals[p:]
     predictors = np.vstack([np.ones_like(predict)] + [residuals[p - i: n - i] for i in range(1, p + 1)]).T
 
-    model = LinearRegression()
+    model = LinearRegression(fit_intercept=False)
     model.fit(predictors, predict)
 
     return np.hstack((residuals[:p], model.predict(predictors))), model.coef_[1:], model.intercept_
@@ -183,7 +182,7 @@ def inflow_periodic_ar_predict(residuals, n, T, p):
     residuals_to_pred = residuals[p:]
     ar_regression_matrix = create_periodic_ar_matrix(residuals, n, T, p)
 
-    model = LinearRegression()
+    model = LinearRegression(fit_intercept=False)
     
     model.fit(ar_regression_matrix, residuals_to_pred)
     residuals_ar_predict = np.hstack((residuals[:p], model.predict(ar_regression_matrix)))
@@ -229,8 +228,7 @@ def periodic_ar_p_future(data, phi, sigma, T, additional_years, p, last_observed
             phi_val = phi[current_period_index * p + j]
             next_val += phi_val * current_data[p - 1 - j]
 
-        current_sigma = sigma[current_period_index]
-        next_val += current_sigma * np.random.normal()
+        next_val += sigma * np.random.normal()
         future_residuals.append(next_val)
 
         current_data.pop(0)
@@ -296,33 +294,46 @@ def sample_vs_normal(data, n, p_value):
     stat, p_value = kstest(data, 'norm', args=(mu, sigma))
     print(f'Estatística (KS): {stat:.4f}, p-valor: {p_value:.4f}')
 
+def compare_histogram_side_by_side(data1, data2, p_value):
+    combined_data = np.concatenate([data1, data2])
+    min_val = np.min(combined_data)
+    max_val = np.max(combined_data)
 
-def compare_histogram(data1, data2, n, p_value):        
-    # IQR
-    q1 = np.percentile(data1, 25)
-    q3 = np.percentile(data1, 75)
-    iqr = q3 - q1
-    h = 2 * iqr * n **(-1/3)
+    n_total = len(combined_data)
+    q1_total = np.percentile(combined_data, 25)
+    q3_total = np.percentile(combined_data, 75)
+    iqr_total = q3_total - q1_total
+    
+    if iqr_total > 0:
+        bin_width = 2 * iqr_total * n_total ** (-1/3)
+        num_bins = int((max_val - min_val) / bin_width)
+    else:
+        num_bins = int(1 + np.log2(n_total))
 
-    # tamanho otimo do bin
-    range = np.max(data1) - np.min(data1)
-    opt_bin1 = int(range // h)
+    
+    plt.figure(figsize=(12, 7))
+    plt.hist([data1, data2], 
+             bins=num_bins, 
+             range=(min_val, max_val), 
+             color=['#007ACC', '#FF4E50'], 
+             edgecolor='black',
+             label=['Dados 1', 'Dados 2']) 
 
-    # IQR
-    q1 = np.percentile(data2, 25)
-    q3 = np.percentile(data2, 75)
-    iqr = q3 - q1
-    h = 2 * iqr * n **(-1/3)
-
-    # tamanho otimo do bin
-    range = np.max(data2) - np.min(data2)
-    opt_bin2 = int(range // h)
-
-    plt.hist(data1, bins=opt_bin1, color='blue', edgecolor='black')
-    plt.hist(data2, bins=opt_bin2, color='red', edgecolor='black')
     plt.xlabel("Vazão (m³/s)")
-    plt.ylabel("Frequência")
-    plt.title(f"Distribuiçoes (p valor = {p_value})")
-    plt.grid(True, linestyle=':', linewidth=0.25)
+    plt.ylabel("Frequência (Contagem)")
+    plt.title(f"Comparativo de Distribuições (p-valor = {p_value:.4f})")
+    plt.grid(True, linestyle=':', linewidth=0.5)
+    plt.legend() 
+    plt.tight_layout()
+    plt.show()
+
+
+def plot(data, n, years, label, title, xlable, ylable):
+    plt.figure(figsize=(12,8))
+    time = np.arange(n)
+    plt.plot(time, data, '-', linewidth=1, color="blue", label=label)
+    plt.title(title)
+    plt.xlabel(xlable)
+    plt.ylabel(ylable)
     plt.tight_layout()
     plt.show()

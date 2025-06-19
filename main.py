@@ -30,7 +30,7 @@ postos = ["SOBRADINHO"]
 
 lenghts = {"dia": 365, "sem": 52, "mes": 12, "est": 4}
 harmonics = 3
-ar_p = 2
+ar_p = 1
 years = 24
 number_of_samples = 100
 
@@ -68,27 +68,34 @@ def pipeline(posto, time_division, model):
     period_kurtosis = np.zeros(T)
     period_ks_stats = np.zeros(T)
     period_ks_p = np.zeros(T)
-    predictions = np.zeros_like(inflow_by_period)
+
     for _ in range(number_of_samples):
-        future_prediction = utils.simple_ar_p_future(deseasonalized_inflow, ar_coef, est_residuals_std, T, years, ar_p)
+        if model == 1:
+            future_prediction = fourier_inflow + utils.simple_ar_p_future(deseasonalized_inflow, ar_coef, est_residuals_std, T, years, ar_p)
+        if model == 2:
+            future_prediction = fourier_inflow + utils.periodic_ar_p_future(deseasonalized_inflow, ar_coef, est_residuals_std, T, years, ar_p, T - 1)
+        if model == 3: 
+            future_prediction = fourier_inflow + fourier_std * utils.simple_ar_p_future(norm_deseasonalized_inflow, ar_coef, est_residuals_std, T, years, ar_p)
+        if model == 4:
+            future_prediction = fourier_inflow + fourier_std * utils.periodic_ar_p_future(norm_deseasonalized_inflow, ar_coef, est_residuals_std, T, years, ar_p, T - 1)
+
+        if _ == 1: 
+            pass
+            #utils.plot(future_prediction, n, years, "Future inflow", "Simulation of future inflow", "Time", "Inflow (m3/s)")
+
         future_prediction = future_prediction.reshape((years, T))
-        predictions = np.vstack((predictions, future_prediction))
         period_mean += np.mean(future_prediction, axis=0) / T
         period_std += np.std(future_prediction, ddof=1, axis=0) / T
         period_kurtosis += kurtosis(future_prediction, axis=0) / T
         period_ks_stats += [kstest(future_prediction[:, period], inflow_by_period[:, period])[0] / T for period in range(T)]
         period_ks_p += [kstest(future_prediction[:, period], inflow_by_period[:, period])[1] / T for period in range(T)] 
 
-    predictions = predictions[years:]
     residuals_mean = np.mean(residuals)
     residuals_kurtosis = kurtosis(residuals)
     residuals_ks_stats, residuals_ks_p = kstest(residuals, 'norm', args=(0, est_residuals_std))
 
-    utils.sample_vs_normal(residuals, n, residuals_ks_p)
-    utils.compare_histogram(predictions[:,0], inflow_by_period[:,0], n, period_ks_p[0])
-    utils.compare_histogram(predictions[:,7], inflow_by_period[:,7], n, period_ks_p[7])
+    #utils.sample_vs_normal(residuals, n, residuals_ks_p)
     
-
     return {"ar_coef": ar_coef, 
             "inflow_fourier_coef": fourier_coef, 
             "std_fourier_coef": std_fourier_coef,
@@ -118,7 +125,7 @@ def main():
                     model_output = pipeline(posto, time_division, i)
                     filename = "model" + str(i) + "_" + time_division + ".csv"
                     utils.save_to_csv(model_output, filename, posto)
-                except ValueError: 
+                except ValueError:
                     print("Erro! Entrada contem NaN")
 
 

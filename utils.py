@@ -12,79 +12,12 @@ from statsmodels.regression.linear_model import yule_walker
 
 years = 24 # quantidade de anos no dataset (2001 - 2024)
 
-def extract_data_otimizada(reservoir):
-    """
-    Versão otimizada que lê todos os dados de uma vez, processa em memória
-    e salva os arquivos de agregação.
-    """
-    filenames = [f"data/DADOS_HIDROLOGICOS_RES_{year}.csv" for year in range(2001, 2025)]
-    
-    # 1. LEITURA OTIMIZADA: Lê e concatena todos os CSVs de uma vez.
-    # Usamos um gerador para não carregar todos na memória antes de concatenar.
-    try:
-        all_data = pd.concat((pd.read_csv(f, sep=';') for f in filenames), ignore_index=True)
-    except FileNotFoundError as e:
-        print(f"Erro: Arquivo não encontrado. Verifique o caminho. Detalhe: {e}")
-        return
-
-    # 2. FILTRAGEM ÚNICA: Filtra pelo reservatório desejado uma única vez.
-    reservoir_data = all_data[all_data['nom_reservatorio'] == reservoir].copy()
-    
-    if reservoir_data.empty:
-        print(f"Aviso: Nenhum dado encontrado para o reservatório '{reservoir}'.")
-        return
-
-    # Garante que o índice é contínuo após a filtragem
-    reservoir_data.reset_index(drop=True, inplace=True)
-    
-    # Prepara para o loop de agregação
-    periods = [1, 7, 30, 90, 180]
-    group_by_names = ['dia', 'sem', 'mes', 'est', 'met']
-    path = "./data/hidro/"
-    
-    # Cria o diretório se ele não existir
-    os.makedirs(path, exist_ok=True)
-
-    # 3. LOOP DE AGREGAÇÃO OTIMIZADO: Itera apenas sobre os períodos.
-    for p, name_suffix in zip(periods, group_by_names):
-        output_name = os.path.join(path, f"{reservoir}_{name_suffix}.csv")
-        
-        # Pula se o arquivo já existe
-        if os.path.exists(output_name):
-            print(f"Arquivo '{output_name}' já existe. Pulando.")
-            continue
-            
-        print(f"Processando para período de {p} dias...")
-
-        # Remove linhas excedentes para garantir blocos completos
-        n_rows = reservoir_data.shape[0]
-        n_full_groups = n_rows // p
-        df_clean = reservoir_data.iloc[:n_full_groups * p]
-
-        # Agrupamento vetorizado (a sua lógica já era boa, mas agora opera no DF grande)
-        group_ids = df_clean.index // p
-        
-        # Separa colunas numéricas e não numéricas
-        df_numeric = df_clean.select_dtypes(include=np.number)
-        df_non_numeric = df_clean.select_dtypes(exclude=np.number)
-
-        # Agrupa e agrega. .mean() para numéricos, .first() para os outros.
-        grouped_numeric = df_numeric.groupby(group_ids).mean()
-        grouped_non_numeric = df_non_numeric.groupby(group_ids).first()
-        
-        # Junta os resultados
-        df_result = pd.concat([grouped_non_numeric, grouped_numeric], axis=1)
-
-        # Salva o arquivo CSV final para este período
-        df_result.to_csv(output_name, sep=';', index=False)
-        print(f"Arquivo '{output_name}' salvo com sucesso.")
-
 
 
 def extract_data(reservoir):
     filenames = [f"data/DADOS_HIDROLOGICOS_RES_{year}.csv" for year in range(2001, 2025)]
 
-    dh = [pd.read_csv(f"data/{filename}.csv", sep=';') for filename in filenames]
+    dh = [pd.read_csv(f"{filename}", sep=';') for filename in filenames]
 
     # Filtrar o reservatório
     data = [df[df['nom_reservatorio'] == reservoir] for df in dh]
@@ -94,7 +27,7 @@ def extract_data(reservoir):
 
     path = "./"
     dir_list = os.listdir(path) 
-    names = ['data/hidro/' + reservoir + '_' + T + '.csv' for T in group_by]
+    names = ['data/hydro/' + reservoir + '_' + T + '.csv' for T in group_by]
 
     for i in range(len(periods)):
         data_by_year = []
@@ -134,7 +67,7 @@ def extract_data(reservoir):
 
 # carrega os dados a partir do nome do reservatório e unidade de tempo
 def load_data(reservoir, group_by):
-    inflow = pd.read_csv('data/hidro/' + reservoir + "_" + group_by + ".csv", sep=';')["val_vazaoincremental"].to_numpy()
+    inflow = pd.read_csv('data/hydro/' + reservoir + "_" + group_by + ".csv", sep=';')["val_vazaoincremental"].to_numpy()
     n = len(inflow)
     T = int(n / years)
 

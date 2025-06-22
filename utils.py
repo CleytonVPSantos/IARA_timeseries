@@ -12,34 +12,77 @@ from statsmodels.regression.linear_model import yule_walker
 
 years = 24 # quantidade de anos no dataset (2001 - 2024)
 
+def extract_data_otimizada(reservoir):
+    """
+    Versão otimizada que lê todos os dados de uma vez, processa em memória
+    e salva os arquivos de agregação.
+    """
+    filenames = [f"data/DADOS_HIDROLOGICOS_RES_{year}.csv" for year in range(2001, 2025)]
+    
+    # 1. LEITURA OTIMIZADA: Lê e concatena todos os CSVs de uma vez.
+    # Usamos um gerador para não carregar todos na memória antes de concatenar.
+    try:
+        all_data = pd.concat((pd.read_csv(f, sep=';') for f in filenames), ignore_index=True)
+    except FileNotFoundError as e:
+        print(f"Erro: Arquivo não encontrado. Verifique o caminho. Detalhe: {e}")
+        return
+
+    # 2. FILTRAGEM ÚNICA: Filtra pelo reservatório desejado uma única vez.
+    reservoir_data = all_data[all_data['nom_reservatorio'] == reservoir].copy()
+    
+    if reservoir_data.empty:
+        print(f"Aviso: Nenhum dado encontrado para o reservatório '{reservoir}'.")
+        return
+
+    # Garante que o índice é contínuo após a filtragem
+    reservoir_data.reset_index(drop=True, inplace=True)
+    
+    # Prepara para o loop de agregação
+    periods = [1, 7, 30, 90, 180]
+    group_by_names = ['dia', 'sem', 'mes', 'est', 'met']
+    path = "./data/hidro/"
+    
+    # Cria o diretório se ele não existir
+    os.makedirs(path, exist_ok=True)
+
+    # 3. LOOP DE AGREGAÇÃO OTIMIZADO: Itera apenas sobre os períodos.
+    for p, name_suffix in zip(periods, group_by_names):
+        output_name = os.path.join(path, f"{reservoir}_{name_suffix}.csv")
+        
+        # Pula se o arquivo já existe
+        if os.path.exists(output_name):
+            print(f"Arquivo '{output_name}' já existe. Pulando.")
+            continue
+            
+        print(f"Processando para período de {p} dias...")
+
+        # Remove linhas excedentes para garantir blocos completos
+        n_rows = reservoir_data.shape[0]
+        n_full_groups = n_rows // p
+        df_clean = reservoir_data.iloc[:n_full_groups * p]
+
+        # Agrupamento vetorizado (a sua lógica já era boa, mas agora opera no DF grande)
+        group_ids = df_clean.index // p
+        
+        # Separa colunas numéricas e não numéricas
+        df_numeric = df_clean.select_dtypes(include=np.number)
+        df_non_numeric = df_clean.select_dtypes(exclude=np.number)
+
+        # Agrupa e agrega. .mean() para numéricos, .first() para os outros.
+        grouped_numeric = df_numeric.groupby(group_ids).mean()
+        grouped_non_numeric = df_non_numeric.groupby(group_ids).first()
+        
+        # Junta os resultados
+        df_result = pd.concat([grouped_non_numeric, grouped_numeric], axis=1)
+
+        # Salva o arquivo CSV final para este período
+        df_result.to_csv(output_name, sep=';', index=False)
+        print(f"Arquivo '{output_name}' salvo com sucesso.")
+
+
 
 def extract_data(reservoir):
-    filenames = [
-                "DADOS_HIDROLOGICOS_RES_2001",
-                "DADOS_HIDROLOGICOS_RES_2002",
-                "DADOS_HIDROLOGICOS_RES_2003",
-                "DADOS_HIDROLOGICOS_RES_2004",
-                "DADOS_HIDROLOGICOS_RES_2005",
-                "DADOS_HIDROLOGICOS_RES_2006",
-                "DADOS_HIDROLOGICOS_RES_2007",
-                "DADOS_HIDROLOGICOS_RES_2008",
-                "DADOS_HIDROLOGICOS_RES_2009",
-                "DADOS_HIDROLOGICOS_RES_2010",
-                "DADOS_HIDROLOGICOS_RES_2011",
-                "DADOS_HIDROLOGICOS_RES_2012",
-                "DADOS_HIDROLOGICOS_RES_2013",
-                "DADOS_HIDROLOGICOS_RES_2014",
-                "DADOS_HIDROLOGICOS_RES_2015",
-                "DADOS_HIDROLOGICOS_RES_2016",
-                "DADOS_HIDROLOGICOS_RES_2017",
-                "DADOS_HIDROLOGICOS_RES_2018",
-                "DADOS_HIDROLOGICOS_RES_2019",
-                "DADOS_HIDROLOGICOS_RES_2020",
-                "DADOS_HIDROLOGICOS_RES_2021",
-                "DADOS_HIDROLOGICOS_RES_2022",
-                "DADOS_HIDROLOGICOS_RES_2023",
-                "DADOS_HIDROLOGICOS_RES_2024"
-                ]
+    filenames = [f"data/DADOS_HIDROLOGICOS_RES_{year}.csv" for year in range(2001, 2025)]
 
     dh = [pd.read_csv(f"data/{filename}.csv", sep=';') for filename in filenames]
 
@@ -197,15 +240,13 @@ def inflow_periodic_ar_predict(residuals, n, T, p):
 def simple_ar_p_future(data, phi, sigma, T, additional_years, p):
     current_data = list(data[-p:])
     future_residuals = []
-
     total_forecast_steps = additional_years * T
 
-    for _ in range(total_forecast_steps):
-        next_val = 0.0
-        for j in range(p):
-            next_val += phi[j] * current_data[p - 1 - j]
+    phi_arr = np.array(phi)
 
-        next_val += sigma * np.random.normal() 
+    for _ in range(total_forecast_steps):
+        next_val = np.dot(phi_arr, current_data[::-1]) + sigma * np.random.normal()
+        
         future_residuals.append(next_val)
 
         current_data.pop(0)
@@ -213,22 +254,20 @@ def simple_ar_p_future(data, phi, sigma, T, additional_years, p):
 
     return np.array(future_residuals)
 
-
 def periodic_ar_p_future(data, phi, sigma, T, additional_years, p, last_observed_period_idx):
     current_data = list(data[-p:])
     future_residuals = []
-
     total_forecast_steps = additional_years * T
+    
+    phi_matrix = np.array(phi).reshape(T, p)
 
     for i in range(total_forecast_steps):
         current_period_index = (last_observed_period_idx + 1 + i) % T
+        
+        current_phi = phi_matrix[current_period_index]
 
-        next_val = 0.0
-        for j in range(p):
-            phi_val = phi[current_period_index * p + j]
-            next_val += phi_val * current_data[p - 1 - j]
-
-        next_val += sigma * np.random.normal()
+        next_val = np.dot(current_phi, current_data[::-1]) + sigma * np.random.normal()
+        
         future_residuals.append(next_val)
 
         current_data.pop(0)
@@ -263,7 +302,6 @@ def save_to_csv(data, filename, posto):
         print(f"Erro ao salvar os dados no arquivo CSV: {e}")
 
 
-      
 def sample_vs_normal(data, n, p_value):
     # IQR
     q1 = np.percentile(data, 25)

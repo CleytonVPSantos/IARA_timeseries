@@ -7,26 +7,27 @@ from scipy.stats import kstest, norm
 
 time_divisions = {"sem"}
 
-"""postos = ["14 DE JULHO", "A. VERMELHA", "AIMORES", "ANTA", "APOLONIO SALES", "B. BONITA", "B.COQUEIROS", "BAGUARI", "BAIXO IGUACU", "BALBINA", 
-        "BARIRI", "BARRA BRAUNA", "BARRA GRANDE", "BATALHA", "BELO MONTE", "BILL E PEDRAS", "BILLINGS", "BLANG", "BOA ESPERANÃA", "C. DOURADA", 
-        "C.BRANCO-1", "C.BRANCO-2", "CACHOEIRA CALDEIRAO", "CACONDE", "CACU", "CAMARGOS", "CAMPOS NOVOS", "CANA BRAVA", "CANAL P. BARRETO", 
-        "CANASTRA", "CANDONGA", "CANOAS I", "CANOAS II", "CAPANEMA", "CAPIVARA", "CASTRO ALVES", "CHAVANTES", "COARACY NUNES", "COLIDER", 
-        "CORUMBA", "CORUMBA-3", "CORUMBA-4", "CURUA-UNA", "D. FRANCISCA", "DARDANELOS", "DIVISA", "E. DA CUNHA", "EDGARD SOUZA", "EMBORCAÃÃO", 
-        "ERNESTINA", "ESPORA", "ESTREITO", "FERREIRA GOMES", "FONTES", "FOZ CHAPECO", "FOZ DO RIO CLARO", "FUNDÃO", "FUNIL", "FUNIL-MG", "FURNAS", 
-        "G. B. MUNHOZ", "G. P. SOUZA", "GARIBALDI", "GOV JAYME CANET JR", "GUAPORE", "GUARAPIRANGA", "GUILM. AMORIM", "HENRY BORDEN", "I. SOLTEIRA", 
-        "IBITINGA", "IGARAPAVA", "ILHA + T. IRMÃOS", "ILHA POMBOS", "IRAPE", "ITAIPU", "ITAPARICA", "ITAPEBI", "ITAUBA", "ITIQUIRA I", "ITIQUIRA II", 
-        "ITUMBIARA", "ITUTINGA", "ITÃ", "JACUI", "JAGUARA", "JAGUARI", "JAURU", "JIRAU", "JORDÃO", "JUPIA", "JURUENA", "JURUMIRIM", "L. C. BARRETO", 
-        "LAJEADO", "LAJES", "LIMOEIRO", "LUIZ GONZAGA", "M. MORAES", "MACHADINHO", "MANSO", "MARIMBONDO", "MASCARENHAS", "MAUA", "MIRANDA", "MONJOLINHO", 
-        "MONTE CLARO", "MOXOTO", "N. AVANHANDAVA", "NILO PEÃANHA", "NOVA PONTE", "OURINHOS", "P. AFONSO 1,2,3", "P. AFONSO 4", "P. COLOMBIA", "PARAIBUNA", 
-        "PARANAPANEMA", "PASSO FUNDO", "PASSO REAL", "PASSO SAO JOAO", "PEDRA DO CAVALO", "PEDRAS", "PEIXE ANGICAL", "PEREIRA PASSOS", "PICADA", "PIMENTAL", 
-        "PIRAJU", "PONTE DE PEDRA", "PONTE NOVA", "PORTO ESTRELA", "PORTO PRIMAVERA", "PROMISSÃO", "QUEBRA QUEIXO", "QUEIMADO", "R-11", "RETIRO BAIXO", 
-        "RIO BONITO", "RONDON II", "ROSAL", "ROSANA", "S.DO FACÃO", "S.R.VERDINHO", "SA CARVALHO", "SALTO", "SALTO APIACAS", "SALTO CAXIAS", "SALTO GRANDE CM", 
-        "SALTO GRANDE CS", "SALTO OSORIO", "SALTO PILAO", "SALTO RS", "SALTO SANTIAGO", "SAMUEL", "SANTA BRANCA", "SANTA CECILIA", "SANTA CLARA-PR", "SANTANA", 
-        "SANTO ANTONIO", "SANTONIO CM", "SAO DOMINGOS", "SAO JOSE", "SAO MANOEL", "SAO ROQUE", "SAO SALVADOR", "SEGREDO", "SERRA DA MESA", "SIMPLICIO", "SINOP", 
-        "SOBRADINHO", "SOBRADINHO INCR", "SOBRAGI", "STA.CLARA-MG", "STO ANTONIO DO JARI", "SUIÃA", "SÃO SIMÃO", "TAQUARUÃU", "TELES PIRES", "TIBAGI MONTANTE", 
-        "TOCOS", "TRÃS IRMÃOS", "TRÃS MARIAS", "TUCURUI", "VIGARIO", "VOLTA GRANDE", "XINGO"]"""
-
-postos = ["SOBRADINHO"]
+postos = ["14 DE JULHO", "A. VERMELHA", "AIMORES", "ANTA", "APOLONIO SALES", "B. BONITA", "B.COQUEIROS", "BAGUARI", 
+          "BAIXO IGUACU", "BALBINA", "BARIRI", "BARRA BRAUNA", "BARRA GRANDE", "BATALHA", "BELO MONTE", "BILL E PEDRAS", 
+          "BILLINGS", "BLANG", "BOA ESPERANÇA", "C. DOURADA", "C.BRANCO-1", "C.BRANCO-2", "CACHOEIRA CALDEIRAO", "CACONDE", 
+          "CACU", "CAMARGOS", "CAMPOS NOVOS", "CANA BRAVA", "CANAL P. BARRETO", "CANASTRA", "CANDONGA", "CANOAS I", 
+          "CANOAS II", "CAPANEMA", "CAPIVARA", "CASTRO ALVES", "CHAVANTES", "COARACY NUNES", "COLIDER", "CORUMBA", "CORUMBA-3", 
+          "CORUMBA-4", "CURUA-UNA", "D. FRANCISCA", "DARDANELOS", "DIVISA", "E. DA CUNHA", "EDGARD SOUZA", "EMBORCAÇÃO", 
+          "ERNESTINA", "ESPORA", "ESTREITO", "FERREIRA GOMES", "FONTES", "FOZ CHAPECO", "FOZ DO RIO CLARO", "FUNDÃO", "FUNIL", 
+          "FUNIL-MG", "FURNAS", "G. B. MUNHOZ", "G. P. SOUZA", "GARIBALDI", "GOV JAYME CANET JR", "GUAPORE", "GUARAPIRANGA", 
+          "GUILM. AMORIM", "HENRY BORDEN", "I. SOLTEIRA", "IBITINGA", "IGARAPAVA", "ILHA + T. IRMÃOS", "ILHA POMBOS", "IRAPE", 
+          "ITAIPU", "ITAPARICA", "ITAPEBI", "ITAUBA", "ITIQUIRA I", "ITIQUIRA II", "ITUMBIARA", "ITUTINGA", "ITÁ", "JACUI", 
+          "JAGUARA", "JAGUARI", "JAURU", "JIRAU", "JORDÃO", "JUPIA", "JURUENA", "JURUMIRIM", "L. C. BARRETO", "LAJEADO", "LAJES", 
+          "LIMOEIRO", "LUIZ GONZAGA", "M. MORAES", "MACHADINHO", "MANSO", "MARIMBONDO", "MASCARENHAS", "MAUA", "MIRANDA", "MONJOLINHO", 
+          "MONTE CLARO", "MOXOTO", "N. AVANHANDAVA", "NILO PEÇANHA", "NOVA PONTE", "OURINHOS", "P. AFONSO 1,2,3", "P. AFONSO 4", 
+          "P. COLOMBIA", "PARAIBUNA", "PARANAPANEMA", "PASSO FUNDO", "PASSO REAL", "PASSO SAO JOAO", "PEDRA DO CAVALO", "PEDRAS", 
+          "PEIXE ANGICAL", "PEREIRA PASSOS", "PICADA", "PIMENTAL", "PIRAJU", "PONTE DE PEDRA", "PONTE NOVA", "PORTO ESTRELA", 
+          "PORTO PRIMAVERA", "PROMISSÃO", "QUEBRA QUEIXO", "QUEIMADO", "R-11", "RETIRO BAIXO", "RIO BONITO", "RONDON II", "ROSAL", 
+          "ROSANA", "S.DO FACÃO", "S.R.VERDINHO", "SA CARVALHO", "SALTO", "SALTO APIACAS", "SALTO CAXIAS", "SALTO GRANDE CM", 
+          "SALTO GRANDE CS", "SALTO OSORIO", "SALTO PILAO", "SALTO RS", "SALTO SANTIAGO", "SAMUEL", "SANTA BRANCA", "SANTA CECILIA", 
+          "SANTA CLARA-PR", "SANTANA", "SANTO ANTONIO", "SANTONIO CM", "SAO DOMINGOS", "SAO JOSE", "SAO MANOEL", "SAO ROQUE", "SAO SALVADOR", 
+          "SEGREDO", "SERRA DA MESA", "SIMPLICIO", "SINOP", "SOBRADINHO", "SOBRADINHO INCR", "SOBRAGI", "STA.CLARA-MG", "STO ANTONIO DO JARI", 
+          "SUIÇA", "SÃO SIMÃO", "TAQUARUÇU", "TELES PIRES", "TIBAGI MONTANTE", "TOCOS", "TRÊS IRMÃOS", "TRÊS MARIAS", "TUCURUI", "VIGARIO", "VOLTA GRANDE", "XINGO"]
 
 lenghts = {"dia": 365, "sem": 52, "mes": 12, "est": 4}
 harmonics = 3
@@ -79,10 +80,6 @@ def pipeline(posto, time_division, model):
         if model == 4:
             future_prediction = fourier_inflow + fourier_std * utils.periodic_ar_p_future(norm_deseasonalized_inflow, ar_coef, est_residuals_std, T, years, ar_p, T - 1)
 
-        if _ == 1: 
-            pass
-            #utils.plot(future_prediction, n, years, "Future inflow", "Simulation of future inflow", "Time", "Inflow (m3/s)")
-
         future_prediction = future_prediction.reshape((years, T))
         period_mean += np.mean(future_prediction, axis=0) / T
         period_std += np.std(future_prediction, ddof=1, axis=0) / T
@@ -93,8 +90,6 @@ def pipeline(posto, time_division, model):
     residuals_mean = np.mean(residuals)
     residuals_kurtosis = kurtosis(residuals)
     residuals_ks_stats, residuals_ks_p = kstest(residuals, 'norm', args=(0, est_residuals_std))
-
-    #utils.sample_vs_normal(residuals, n, residuals_ks_p)
     
     return {"ar_coef": ar_coef, 
             "inflow_fourier_coef": fourier_coef, 
@@ -115,11 +110,11 @@ def pipeline(posto, time_division, model):
 
 
 def main():
-    for time_division in time_divisions:
-        for posto in postos:
-            print(f"EXTRAINDO DADOS - {posto}, {time_division}")
-            utils.extract_data(posto)
-            for i in range(1,5):
+    for posto in postos:
+        print(f"EXTRAINDO DADOS - {posto}")
+        utils.extract_data(posto)
+        for time_division in time_divisions:
+            for i in range(3,4):
                 print(f"RODANDO MODELO {i}")
                 try:
                     model_output = pipeline(posto, time_division, i)

@@ -118,7 +118,7 @@ def main():
                 print(f"RODANDO MODELO {i}")
                 try:
                     model_output = pipeline(posto, time_division, i)
-                    filename = "model" + str(i) + "_" + time_division + ".csv"
+                    filename = "results/m" + str(i) + "_" + posto + "_" + time_division + ".csv"
                     utils.save_to_csv(model_output, filename, posto)
                 except ValueError:
                     print("Erro! Entrada contem NaN")

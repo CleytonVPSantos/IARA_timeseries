@@ -13,7 +13,6 @@ from statsmodels.regression.linear_model import yule_walker
 years = 24 # quantidade de anos no dataset (2001 - 2024)
 
 
-
 def extract_data(reservoir):
     filenames = [f"data/DADOS_HIDROLOGICOS_RES_{year}.csv" for year in range(2001, 2025)]
 
@@ -235,76 +234,141 @@ def save_to_csv(data, filename, posto):
         print(f"Erro ao salvar os dados no arquivo CSV: {e}")
 
 
-def sample_vs_normal(data, n, p_value):
-    # IQR
+def plot_hist(data, n, filename):
+    """Salva um histograma exibindo a média e o desvio padrão na legenda."""
+    # Cálculo de bins pela regra de Freedman-Diaconis
     q1 = np.percentile(data, 25)
     q3 = np.percentile(data, 75)
     iqr = q3 - q1
-    h = 2 * iqr * n **(-1/3)
-
-    # tamanho otimo do bin
-    range = np.max(data) - np.min(data)
-    opt_bin = int(range // h)
-
+    
+    # Prevenção de divisão por zero
+    if iqr > 0:
+        h = 2 * iqr * n **(-1/3)
+        range_val = np.max(data) - np.min(data)
+        opt_bin = int(range_val / h) if h > 0 else 20
+    else:
+        opt_bin = 20
+    
+    # --- ALTERAÇÃO PRINCIPAL ---
+    # Calcular média e desvio padrão
     mu = np.mean(data)
-    sigma = np.std(data, ddof=1)
-    x = np.linspace(mu - 4*sigma, mu + 4*sigma, 1000)
-    pdf = norm.pdf(x, mu, sigma)
+    sigma = np.std(data, ddof=1) # ddof=1 para desvio padrão amostral
+
+    # Formatar a string para a legenda
+    label_text = f'Amostra\n($\\mu={mu:.2f}$, $\\sigma={sigma:.2f}$)'
+    # --- FIM DA ALTERAÇÃO ---
 
     plt.figure(figsize=(8, 4))
-    plt.hist(data, bins=opt_bin, density=True, color='lightblue', edgecolor='black', label='Histograma da amostra')
-    plt.plot(x, pdf, 'r-', lw=2, label='PDF Normal')
-    plt.xlabel("Vazão (m³/s)")
-    plt.ylabel("Densidade")
-    plt.title(f"Amostra vs Normal (mesma média e desvio padrão) (p valor = {p_value})")
+    # Usar o novo texto na legenda
+    plt.hist(data, bins=opt_bin, color='lightblue', edgecolor='black', label=label_text)
+    plt.xlabel("Inflow (m³/s)")
+    plt.ylabel("Frequência")
+    plt.title("Histograma dos Dados")
     plt.grid(True, linestyle=':', linewidth=0.25)
     plt.legend()
     plt.tight_layout()
-    plt.show()
+    plt.savefig(filename)
+    plt.close()
 
+def sample_vs_normal(data, n, filename):
+    """Salva um histograma vs. PDF Normal, exibindo média e desvio padrão."""
+    # Cálculo de bins
+    q1 = np.percentile(data, 25)
+    q3 = np.percentile(data, 75)
+    iqr = q3 - q1
+    
+    if iqr > 0:
+        h = 2 * iqr * n **(-1/3)
+        range_val = np.max(data) - np.min(data)
+        opt_bin = int(range_val / h) if h > 0 else 20
+    else:
+        opt_bin = 20
+
+    # Média e desvio padrão já são calculados
+    mu = np.mean(data)
+    sigma = np.std(data, ddof=1)
+    
+    # Geração da PDF Normal
+    x = np.linspace(mu - 4*sigma, mu + 4*sigma, 1000)
+    pdf = norm.pdf(x, mu, sigma)
     stat, p_value = kstest(data, 'norm', args=(mu, sigma))
-    print(f'Estatística (KS): {stat:.4f}, p-valor: {p_value:.4f}')
 
-def compare_histogram_side_by_side(data1, data2, p_value):
+    # --- ALTERAÇÃO PRINCIPAL ---
+    # Formatar a string para a legenda do histograma
+    hist_label = f'Amostra\n($\\mu={mu:.2f}$, $\\sigma={sigma:.2f}$)'
+    # --- FIM DA ALTERAÇÃO ---
+
+    plt.figure(figsize=(8, 4))
+    # Usar o novo texto na legenda do histograma
+    plt.hist(data, bins=opt_bin, density=True, color='lightblue', edgecolor='black', label=hist_label)
+    plt.plot(x, pdf, 'r-', lw=2, label='PDF Normal Teórica')
+    plt.xlabel("Vazão (m³/s)")
+    plt.ylabel("Densidade")
+    plt.title(f"Amostra vs Normal (p-valor = {p_value:.4f})")
+    plt.grid(True, linestyle=':', linewidth=0.25)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close()
+
+def compare_histogram_vertical(data1, data2, filename):
+    """Salva histogramas comparativos, cada um com sua média e desvio padrão."""
+    # Cálculos gerais para bins e eixos
     combined_data = np.concatenate([data1, data2])
     min_val = np.min(combined_data)
     max_val = np.max(combined_data)
-
+    stat, p_value = kstest(data1, data2)
     n_total = len(combined_data)
     q1_total = np.percentile(combined_data, 25)
     q3_total = np.percentile(combined_data, 75)
     iqr_total = q3_total - q1_total
-    
+
     if iqr_total > 0:
         bin_width = 2 * iqr_total * n_total ** (-1/3)
         num_bins = int((max_val - min_val) / bin_width)
     else:
         num_bins = int(1 + np.log2(n_total))
 
+    fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(10, 8), sharex=True)
+    fig.suptitle(f"Comparativo de Distribuições (p-valor K-S = {p_value:.4f})", fontsize=16)
+
+    # --- ALTERAÇÃO PARA O PLOT 1 ---
+    mu1 = np.mean(data1)
+    sigma1 = np.std(data1, ddof=1)
+    label1 = f'Dados Reais\n($\\mu={mu1:.2f}$, $\\sigma={sigma1:.2f}$)'
     
-    plt.figure(figsize=(12, 7))
-    plt.hist([data1, data2], 
-             bins=num_bins, 
-             range=(min_val, max_val), 
-             color=['#007ACC', '#FF4E50'], 
-             edgecolor='black',
-             label=['Dados 1', 'Dados 2']) 
+    ax1.hist(data1, bins=num_bins, range=(min_val, max_val),
+             color='#007ACC', edgecolor='black', label=label1)
+    ax1.set_ylabel("Frequência")
+    ax1.set_title("Dados Reais")
+    ax1.grid(True, linestyle=':', linewidth=0.5)
+    ax1.legend()
 
-    plt.xlabel("Vazão (m³/s)")
-    plt.ylabel("Frequência (Contagem)")
-    plt.title(f"Comparativo de Distribuições (p-valor = {p_value:.4f})")
-    plt.grid(True, linestyle=':', linewidth=0.5)
-    plt.legend() 
-    plt.tight_layout()
-    plt.show()
+    # --- ALTERAÇÃO PARA O PLOT 2 ---
+    mu2 = np.mean(data2)
+    sigma2 = np.std(data2, ddof=1)
+    label2 = f'Simulação\n($\\mu={mu2:.2f}$, $\\sigma={sigma2:.2f}$)'
+    
+    ax2.hist(data2, bins=num_bins, range=(min_val, max_val),
+             color='#FF4E50', edgecolor='black', label=label2)
+    ax2.set_xlabel("Vazão (m³/s)")
+    ax2.set_ylabel("Frequência")
+    ax2.set_title("Simulação")
+    ax2.grid(True, linestyle=':', linewidth=0.5)
+    ax2.legend()
 
-
-def plot(data, n, years, label, title, xlable, ylable):
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.savefig(filename)
+    plt.close()
+    
+def plot(data_set, n, markers, colors, labels, title, xlable, ylable, filename):
     plt.figure(figsize=(12,8))
     time = np.arange(n)
-    plt.plot(time, data, '-', linewidth=1, color="blue", label=label)
+    for i, data in enumerate(data_set):
+        plt.plot(time, data, markers[i], linewidth=1, color=colors[i], label=labels[i])
     plt.title(title)
     plt.xlabel(xlable)
     plt.ylabel(ylable)
     plt.tight_layout()
-    plt.show()
+    plt.savefig(filename)
+    plt.close()

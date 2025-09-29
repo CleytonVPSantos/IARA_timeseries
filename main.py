@@ -4,7 +4,6 @@ import numpy as np
 from scipy.stats import kurtosis
 from scipy.stats import kstest, norm
 
-
 time_divisions = {"sem"}
 
 postos = ["14 DE JULHO", "A. VERMELHA", "AIMORES", "ANTA", "APOLONIO SALES", "B. BONITA", "B.COQUEIROS", "BAGUARI", 
@@ -35,7 +34,7 @@ ar_p = 1
 years = 24
 number_of_samples = 100
 
-
+# pipelines for the different models
 def pipeline(posto, time_division, model):
     inflow, n, T = utils.load_data(posto, time_division)
     fourier_inflow, deseasonalized_inflow, fourier_sq_error, fourier_coef = utils.inflow_fourier_predict(inflow, n, T, harmonics)
@@ -91,6 +90,7 @@ def pipeline(posto, time_division, model):
     residuals_kurtosis = kurtosis(residuals)
     residuals_ks_stats, residuals_ks_p = kstest(residuals, 'norm', args=(0, est_residuals_std))
     
+    # data to save in CSV
     return {"ar_coef": ar_coef, 
             "inflow_fourier_coef": fourier_coef, 
             "std_fourier_coef": std_fourier_coef,
@@ -108,20 +108,16 @@ def pipeline(posto, time_division, model):
             "period_ks_stats": period_ks_stats,
             "period_ks_p": period_ks_p}
 
-
+# data is used for simulations
 def main():
-    for posto in postos:
+    for posto in ["SOBRADINHO"]:
         print(f"EXTRAINDO DADOS - {posto}")
         utils.extract_data(posto)
-        for time_division in time_divisions:
+        for time_division in ["dia"]:
             for i in range(3,4):
                 print(f"RODANDO MODELO {i}")
-                try:
-                    model_output = pipeline(posto, time_division, i)
-                    filename = "results/m" + str(i) + "_" + posto + "_" + time_division + ".csv"
-                    utils.save_to_csv(model_output, filename, posto)
-                except ValueError:
-                    print("Erro! Entrada contem NaN")
-
+                model_output = pipeline(posto, time_division, i)
+                filename = "results/m" + str(i) + "_" + posto + "_" + time_division + ".csv"
+                utils.save_to_csv(model_output, filename, posto)
 
 main()

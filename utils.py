@@ -9,16 +9,26 @@ from scipy.special import gamma
 from scipy.stats import kstest, norm
 from statsmodels.regression.linear_model import yule_walker
 
-
 years = 24 # quantidade de anos no dataset (2001 - 2024)
 
-
+# lê os arquivos com os dados originais, trata os dados e escreve em um csv separando por posto e tamanho do periodo
 def extract_data(reservoir):
-    filenames = [f"data/DADOS_HIDROLOGICOS_RES_{year}.csv" for year in range(2001, 2025)]
+    years = range(2001, 2025)
+    filenames = [f"data/DADOS_HIDROLOGICOS_RES_{year}.csv" for year in years]
 
-    dh = [pd.read_csv(f"{filename}", sep=';') for filename in filenames]
+    dh = []
+    for filename in filenames:
+        df = pd.read_csv(filename, sep=';')
 
-    # Filtrar o reservatório
+        # converter a coluna de data
+        df['din_instante'] = pd.to_datetime(df['din_instante'], errors='coerce')
+
+        # remover 29/02
+        df = df[~((df['din_instante'].dt.month == 2) & (df['din_instante'].dt.day == 29))]
+
+        dh.append(df)
+
+    # filtrar o reservatório
     data = [df[df['nom_reservatorio'] == reservoir] for df in dh]
 
     periods = [1, 7, 30, 90, 180]
@@ -60,7 +70,7 @@ def extract_data(reservoir):
 
                 data_by_year.append(df_result)
 
-            # junta os 24 dfs em um só arquivo csv
+            # junta todos os anos em um só arquivo csv
             pd.concat(data_by_year).to_csv(names[i], sep=';', index=False)
 
 
@@ -83,6 +93,7 @@ def create_fourier_matrix(t, T, harmonics):
     return np.column_stack(features)
 
 
+# returns the seasonal component estimation using fourier series
 def inflow_fourier_predict(inflow, n, T, N):
     model = LinearRegression(fit_intercept=False)
     time = np.arange(n)
@@ -91,7 +102,14 @@ def inflow_fourier_predict(inflow, n, T, N):
     model.fit(fourier_matrix, inflow)
     inflow_fourier_pred = model.predict(fourier_matrix)
     residuals = inflow - inflow_fourier_pred
-    return inflow_fourier_pred, residuals, np.square(residuals).mean, model.coef_
+    coef = model.coef_
+    # Estimativa de sigma^2
+    sigma2 = np.sum(residuals**2) / n
+    # Log-verossimilhança
+    ll = -0.5 * n * (np.log(2*np.pi*sigma2) + 1)
+    # AIC
+    AIC = 2*(2*N + 1) - 2*ll
+    return inflow_fourier_pred, residuals, np.square(residuals).mean, coef, AIC
 
 
 # calculate data sample variance and mean for each period separately
@@ -105,7 +123,7 @@ def mean_and_std(data, periods):
 # ajusta fourier no desvio padrão dos residuos
 def fourier_residuals_std(deseasonalized_inflow, n, T, N):
     residuals_std = mean_and_std(deseasonalized_inflow, T)[1]
-    residuals_fourier_pred, _, _, std_fourier_coef  = inflow_fourier_predict(residuals_std, n, T, N)
+    residuals_fourier_pred, _, _, std_fourier_coef, _  = inflow_fourier_predict(residuals_std, n, T, N)
     return residuals_fourier_pred, std_fourier_coef
 
 
@@ -121,6 +139,7 @@ def padronize_residuals(residuals):
     residuals = residuals / residuals_std
 
     return residuals, residuals_std
+
 
 
 def least_squares_ar_fit(residuals, n, p):
@@ -169,6 +188,7 @@ def inflow_periodic_ar_predict(residuals, n, T, p):
     return residuals_ar_predict, final_residuals, model.coef_, sq_error, residuals_std_b
 
 
+# Simula um AR(p) por um determinado número de periodos, dados parâmetros e dados iniciais
 def simple_ar_p_future(data, phi, sigma, T, additional_years, p):
     current_data = list(data[-p:])
     future_residuals = []
@@ -186,6 +206,8 @@ def simple_ar_p_future(data, phi, sigma, T, additional_years, p):
 
     return np.array(future_residuals)
 
+
+# Simula um AR(p) com coeficientes fixos por um determinado número de periodos, dados parâmetros e dados iniciais
 def periodic_ar_p_future(data, phi, sigma, T, additional_years, p, last_observed_period_idx):
     current_data = list(data[-p:])
     future_residuals = []
@@ -208,6 +230,7 @@ def periodic_ar_p_future(data, phi, sigma, T, additional_years, p, last_observed
     return np.array(future_residuals)
 
 
+# salva os dados de uma simulação em um csv
 def save_to_csv(data, filename, posto):
     to_csv = {"posto": posto} 
 
@@ -249,14 +272,12 @@ def plot_hist(data, n, filename):
     else:
         opt_bin = 20
     
-    # --- ALTERAÇÃO PRINCIPAL ---
     # Calcular média e desvio padrão
     mu = np.mean(data)
     sigma = np.std(data, ddof=1) # ddof=1 para desvio padrão amostral
 
     # Formatar a string para a legenda
     label_text = f'Amostra\n($\\mu={mu:.2f}$, $\\sigma={sigma:.2f}$)'
-    # --- FIM DA ALTERAÇÃO ---
 
     plt.figure(figsize=(8, 4))
     # Usar o novo texto na legenda
@@ -269,6 +290,7 @@ def plot_hist(data, n, filename):
     plt.tight_layout()
     plt.savefig(filename)
     plt.close()
+
 
 def sample_vs_normal(data, n, filename):
     """Salva um histograma vs. PDF Normal, exibindo média e desvio padrão."""
@@ -292,11 +314,9 @@ def sample_vs_normal(data, n, filename):
     x = np.linspace(mu - 4*sigma, mu + 4*sigma, 1000)
     pdf = norm.pdf(x, mu, sigma)
     stat, p_value = kstest(data, 'norm', args=(mu, sigma))
-
-    # --- ALTERAÇÃO PRINCIPAL ---
+    
     # Formatar a string para a legenda do histograma
     hist_label = f'Amostra\n($\\mu={mu:.2f}$, $\\sigma={sigma:.2f}$)'
-    # --- FIM DA ALTERAÇÃO ---
 
     plt.figure(figsize=(8, 4))
     # Usar o novo texto na legenda do histograma
@@ -310,6 +330,7 @@ def sample_vs_normal(data, n, filename):
     plt.tight_layout()
     plt.savefig(filename)
     plt.close()
+
 
 def compare_histogram_vertical(data1, data2, filename):
     """Salva histogramas comparativos, cada um com sua média e desvio padrão."""
@@ -332,7 +353,6 @@ def compare_histogram_vertical(data1, data2, filename):
     fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(10, 8), sharex=True)
     fig.suptitle(f"Comparativo de Distribuições (p-valor K-S = {p_value:.4f})", fontsize=16)
 
-    # --- ALTERAÇÃO PARA O PLOT 1 ---
     mu1 = np.mean(data1)
     sigma1 = np.std(data1, ddof=1)
     label1 = f'Dados Reais\n($\\mu={mu1:.2f}$, $\\sigma={sigma1:.2f}$)'
@@ -344,7 +364,6 @@ def compare_histogram_vertical(data1, data2, filename):
     ax1.grid(True, linestyle=':', linewidth=0.5)
     ax1.legend()
 
-    # --- ALTERAÇÃO PARA O PLOT 2 ---
     mu2 = np.mean(data2)
     sigma2 = np.std(data2, ddof=1)
     label2 = f'Simulação\n($\\mu={mu2:.2f}$, $\\sigma={sigma2:.2f}$)'
@@ -361,6 +380,7 @@ def compare_histogram_vertical(data1, data2, filename):
     plt.savefig(filename)
     plt.close()
     
+
 def plot(data_set, n, markers, colors, labels, title, xlable, ylable, filename):
     plt.figure(figsize=(12,8))
     time = np.arange(n)
@@ -369,6 +389,30 @@ def plot(data_set, n, markers, colors, labels, title, xlable, ylable, filename):
     plt.title(title)
     plt.xlabel(xlable)
     plt.ylabel(ylable)
+    plt.legend()
     plt.tight_layout()
     plt.savefig(filename)
     plt.close()
+
+
+res = ["14 DE JULHO", "A. VERMELHA", "AIMORES", "ANTA", "APOLONIO SALES", "B. BONITA", "B.COQUEIROS", "BAGUARI", 
+          "BAIXO IGUACU", "BALBINA", "BARIRI", "BARRA BRAUNA", "BARRA GRANDE", "BATALHA", "BELO MONTE", "BILL E PEDRAS", 
+          "BILLINGS", "BLANG", "BOA ESPERANÇA", "C. DOURADA", "C.BRANCO-1", "C.BRANCO-2", "CACHOEIRA CALDEIRAO", "CACONDE", 
+          "CACU", "CAMARGOS", "CAMPOS NOVOS", "CANA BRAVA", "CANAL P. BARRETO", "CANASTRA", "CANDONGA", "CANOAS I", 
+          "CANOAS II", "CAPANEMA", "CAPIVARA", "CASTRO ALVES", "CHAVANTES", "COARACY NUNES", "COLIDER", "CORUMBA", "CORUMBA-3", 
+          "CORUMBA-4", "CURUA-UNA", "D. FRANCISCA", "DARDANELOS", "DIVISA", "E. DA CUNHA", "EDGARD SOUZA", "EMBORCAÇÃO", 
+          "ERNESTINA", "ESPORA", "ESTREITO", "FERREIRA GOMES", "FONTES", "FOZ CHAPECO", "FOZ DO RIO CLARO", "FUNDÃO", "FUNIL", 
+          "FUNIL-MG", "FURNAS", "G. B. MUNHOZ", "G. P. SOUZA", "GARIBALDI", "GOV JAYME CANET JR", "GUAPORE", "GUARAPIRANGA", 
+          "GUILM. AMORIM", "HENRY BORDEN", "I. SOLTEIRA", "IBITINGA", "IGARAPAVA", "ILHA + T. IRMÃOS", "ILHA POMBOS", "IRAPE", 
+          "ITAIPU", "ITAPARICA", "ITAPEBI", "ITAUBA", "ITIQUIRA I", "ITIQUIRA II", "ITUMBIARA", "ITUTINGA", "ITÁ", "JACUI", 
+          "JAGUARA", "JAGUARI", "JAURU", "JIRAU", "JORDÃO", "JUPIA", "JURUENA", "JURUMIRIM", "L. C. BARRETO", "LAJEADO", "LAJES", 
+          "LIMOEIRO", "LUIZ GONZAGA", "M. MORAES", "MACHADINHO", "MANSO", "MARIMBONDO", "MASCARENHAS", "MAUA", "MIRANDA", "MONJOLINHO", 
+          "MONTE CLARO", "MOXOTO", "N. AVANHANDAVA", "NILO PEÇANHA", "NOVA PONTE", "OURINHOS", "P. AFONSO 1,2,3", "P. AFONSO 4", 
+          "P. COLOMBIA", "PARAIBUNA", "PARANAPANEMA", "PASSO FUNDO", "PASSO REAL", "PASSO SAO JOAO", "PEDRA DO CAVALO", "PEDRAS", 
+          "PEIXE ANGICAL", "PEREIRA PASSOS", "PICADA", "PIMENTAL", "PIRAJU", "PONTE DE PEDRA", "PONTE NOVA", "PORTO ESTRELA", 
+          "PORTO PRIMAVERA", "PROMISSÃO", "QUEBRA QUEIXO", "QUEIMADO", "R-11", "RETIRO BAIXO", "RIO BONITO", "RONDON II", "ROSAL", 
+          "ROSANA", "S.DO FACÃO", "S.R.VERDINHO", "SA CARVALHO", "SALTO", "SALTO APIACAS", "SALTO CAXIAS", "SALTO GRANDE CM", 
+          "SALTO GRANDE CS", "SALTO OSORIO", "SALTO PILAO", "SALTO RS", "SALTO SANTIAGO", "SAMUEL", "SANTA BRANCA", "SANTA CECILIA", 
+          "SANTA CLARA-PR", "SANTANA", "SANTO ANTONIO", "SANTONIO CM", "SAO DOMINGOS", "SAO JOSE", "SAO MANOEL", "SAO ROQUE", "SAO SALVADOR", 
+          "SEGREDO", "SERRA DA MESA", "SIMPLICIO", "SINOP", "SOBRADINHO", "SOBRADINHO INCR", "SOBRAGI", "STA.CLARA-MG", "STO ANTONIO DO JARI", 
+          "SUIÇA", "SÃO SIMÃO", "TAQUARUÇU", "TELES PIRES", "TIBAGI MONTANTE", "TOCOS", "TRÊS IRMÃOS", "TRÊS MARIAS", "TUCURUI", "VIGARIO", "VOLTA GRANDE", "XINGO"]

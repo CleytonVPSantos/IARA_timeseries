@@ -14,7 +14,7 @@ class ModelParameters:
     inflow_fourier_coef: list[float]
     std_fourier_coef: list[float]
 
-
+# load parameters for simulation
 def load_parameters(posto_nome: str, caminho_csv: str) -> ModelParameters:
     print(f"Carregando parâmetros para o posto: {posto_nome}...")
     try:
@@ -43,7 +43,6 @@ def load_parameters(posto_nome: str, caminho_csv: str) -> ModelParameters:
         inflow_fourier_coef=inflow_coefs,
         std_fourier_coef=std_coefs
     )
-
 
 # generates a AR process (independent of state)
 def simple_ar_1_future(phi, sigma, x0, total_forecast_steps):
@@ -115,7 +114,6 @@ def seasonality_point(total_states, harmonics, inflow_fourier_coef, std_fourier_
 
     return fourier_inflow, fourier_std
 
-
 def exec_simulation(params, total_states, i, change_probability, years, posto):
 
     print(f"\nExecutando simulação para: Posto='{params.posto}', Estados={total_states}, Prob. Mudança={change_probability:.2f}")
@@ -155,9 +153,9 @@ def exec_simulation(params, total_states, i, change_probability, years, posto):
                 total_states/change_probability*6, 
                 ['-', '--'], 
                 ["blue", "red"],
-                ["Inflow forecast", "Sazonal component (based on stage)"],
-                "Inflow simulation",
-                "Simulation steps",
+                ["Vazão predita", "Componente sazonal (baseada no estágio)"],
+                "Simulação da vazão",
+                "Passo da simulação",
                     "Inflow",
                     "simul/"+posto+"simp"+str(i)+"t"+str(total_states))
 

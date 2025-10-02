@@ -8,6 +8,8 @@ from statsmodels.tsa.ar_model import AutoReg
 from scipy.special import gamma
 from scipy.stats import kstest, norm
 from statsmodels.regression.linear_model import yule_walker
+import statsmodels.api as sm # Adicione esta importação no topo do seu utils.py
+from numpy.lib.stride_tricks import as_strided
 
 years = 24 # quantidade de anos no dataset (2001 - 2024)
 
@@ -94,36 +96,56 @@ def create_fourier_matrix(t, T, harmonics):
 
 
 # returns the seasonal component estimation using fourier series
+
 def inflow_fourier_predict(inflow, n, T, N):
-    model = LinearRegression(fit_intercept=False)
     time = np.arange(n)
-    
     fourier_matrix = create_fourier_matrix(time, T, N)
-    model.fit(fourier_matrix, inflow)
-    inflow_fourier_pred = model.predict(fourier_matrix)
-    residuals = inflow - inflow_fourier_pred
-    coef = model.coef_
-    # Estimativa de sigma^2
-    sigma2 = np.sum(residuals**2) / n
-    # Log-verossimilhança
-    ll = -0.5 * n * (np.log(2*np.pi*sigma2) + 1)
-    # AIC
-    AIC = 2*(2*N + 1) - 2*ll
-    return inflow_fourier_pred, residuals, np.square(residuals).mean, coef, AIC
+
+    model = sm.OLS(inflow, fourier_matrix).fit()
+
+    inflow_fourier_pred = model.fittedvalues
+    residuals = model.resid
+
+    coef = model.params
+
+    ll = model.llf
+    AIC = model.aic
+    conf_int = model.conf_int()
+
+    return {
+        "pred": inflow_fourier_pred,
+        "residuals": residuals,
+        "mse": np.mean(residuals**2),
+        "coef": coef,
+        "loglik": ll,
+        "AIC": AIC,
+        "conf_int": conf_int
+    }
 
 
 # calculate data sample variance and mean for each period separately
 def mean_and_std(data, periods):
-    data = data.reshape((years, periods))
-    data_mean = np.tile(np.mean(data, axis=0), years)
-    data_std = np.tile(np.std(data, axis=0, ddof=1), years)
+    data = data.reshape((data.size // periods, periods))
+    data_mean = np.tile(np.mean(data, axis=0), data.size // periods)
+    data_std = np.tile(np.std(data, axis=0, ddof=1), data.size // periods)
     return data_mean, data_std
 
 
-# ajusta fourier no desvio padrão dos residuos
 def fourier_residuals_std(deseasonalized_inflow, n, T, N):
-    residuals_std = mean_and_std(deseasonalized_inflow, T)[1]
-    residuals_fourier_pred, _, _, std_fourier_coef, _  = inflow_fourier_predict(residuals_std, n, T, N)
+    """
+    Ajusta fourier no desvio padrão dos residuos.
+    *** VERSÃO CORRIGIDA PARA LIDAR COM DICIONÁRIO ***
+    """
+    # Calcula o desvio padrão periódico dos resíduos
+    # A função mean_and_std já retorna o vetor com o tamanho correto (repetido para os 24 anos)
+    _, residuals_std = mean_and_std(deseasonalized_inflow, T)
+    
+    fourier_results_std = inflow_fourier_predict(residuals_std, n, T, N)
+    
+    # Extrai os resultados do dicionário
+    residuals_fourier_pred = fourier_results_std["pred"]
+    std_fourier_coef = fourier_results_std["coef"]
+    
     return residuals_fourier_pred, std_fourier_coef
 
 
@@ -139,7 +161,6 @@ def padronize_residuals(residuals):
     residuals = residuals / residuals_std
 
     return residuals, residuals_std
-
 
 
 def least_squares_ar_fit(residuals, n, p):
@@ -172,20 +193,75 @@ def create_periodic_ar_matrix(inflow, n, T, p):
 
 
 # Ajuste do AR com coeficientes periódicos
-def inflow_periodic_ar_predict(residuals, n, T, p):
-    residuals_to_pred = residuals[p:]
-    ar_regression_matrix = create_periodic_ar_matrix(residuals, n, T, p)
+def inflow_periodic_ar_predict(residuals: np.ndarray, T: int, p: int) -> tuple:
+    """
+    Ajusta um modelo Autoregressivo com coeficientes periódicos de forma otimizada.
 
-    model = LinearRegression(fit_intercept=False)
+    Em vez de construir uma matriz esparsa gigante, esta função resolve T problemas
+    de mínimos quadrados menores e independentes, um para cada passo do período.
+
+    Args:
+        residuals (np.ndarray): A série de resíduos a ser modelada.
+        T (int): O comprimento do período (ex: 365 para dados diários anuais).
+        p (int): A ordem do modelo AR.
+
+    Returns:
+        tuple: Contendo:
+            - residuals_ar_predict (np.ndarray): Os valores previstos pelo modelo AR.
+            - final_residuals (np.ndarray): O ruído final (resíduos - previsão).
+            - all_coeffs (np.ndarray): Matriz de coeficientes (T, p).
+            - sq_error (float): O erro quadrático médio.
+            - residuals_std_b (float): O desvio padrão do ruído final.
+    """
+    n = len(residuals)
     
-    model.fit(ar_regression_matrix, residuals_to_pred)
-    residuals_ar_predict = np.hstack((residuals[:p], model.predict(ar_regression_matrix)))
+    # 1. Criar a matriz de features defasadas (lags) de forma vetorizada
+    # Isso cria uma visão (view) da memória sem copiar dados, sendo muito eficiente.
+    # A matriz 'lags' terá shape (n-p, p)
+    # Cada linha i contém [resid[i+p-1], resid[i+p-2], ..., resid[i]]
+    lags = as_strided(residuals, 
+                      shape=(n - p + 1, p), 
+                      strides=(residuals.strides[0], residuals.strides[0]))
+    # Precisamos dos lags [resid[i-1], ..., resid[i-p]] para prever resid[i]
+    # Invertemos a ordem das colunas e removemos a última linha que não tem alvo
+    X_lags = np.flip(lags[:-1, :], axis=1)
+    
+    # O alvo da regressão são os resíduos a partir do p-ésimo
+    y_target = residuals[p:]
+
+    # Arrays para armazenar os resultados
+    all_coeffs = np.zeros((T, p))
+    residuals_ar_predict = np.zeros(n)
+    residuals_ar_predict[:p] = residuals[:p]  # Os p primeiros valores não são previstos
+
+    # 2. Iterar T vezes (muito mais rápido que n vezes)
+    for j in range(T):
+        # Selecionar todos os dados que correspondem ao dia 'j' do período
+        indices = np.arange(j, n - p, T)
+        
+        if len(indices) == 0:
+            continue # Nenhum dado para este dia do período
+
+        X_j = X_lags[indices]
+        y_j = y_target[indices]
+        
+        # 3. Resolver o sistema de mínimos quadrados para este dia
+        # np.linalg.lstsq é mais direto e rápido que scikit-learn para OLS simples
+        coeffs_j, _, _, _ = np.linalg.lstsq(X_j, y_j, rcond=None)
+        all_coeffs[j, :] = coeffs_j
+        
+        # 4. Fazer a previsão para todos os pontos do dia 'j' de uma vez
+        residuals_ar_predict[indices + p] = X_j @ coeffs_j
+    
+    # Reformatar os coeficientes para ficarem iguais ao da versão original (T*p,)
+    flat_coeffs = all_coeffs.flatten()
+
+    # Calcular as métricas finais
     final_residuals = residuals - residuals_ar_predict
+    sq_error = np.mean(np.square(final_residuals[p:])) # O erro é calculado sobre as previsões
+    residuals_std_b = np.std(final_residuals[p:])
 
-    residuals_std_b = np.std(final_residuals)
-    sq_error = np.square(final_residuals).mean()
-    
-    return residuals_ar_predict, final_residuals, model.coef_, sq_error, residuals_std_b
+    return residuals_ar_predict, final_residuals, flat_coeffs, sq_error, residuals_std_b
 
 
 # Simula um AR(p) por um determinado número de periodos, dados parâmetros e dados iniciais

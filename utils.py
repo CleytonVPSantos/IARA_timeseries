@@ -78,7 +78,7 @@ def extract_data(reservoir):
 
 # carrega os dados a partir do nome do reservatório e unidade de tempo
 def load_data(reservoir, group_by):
-    inflow = pd.read_csv('data/hydro/' + reservoir + "_" + group_by + ".csv", sep=';')["val_vazaoincremental"].to_numpy()
+    inflow = pd.read_csv('data/hydro/' + reservoir + "_" + group_by + ".csv", sep=';')["val_vazaonatural"].to_numpy()
     n = len(inflow)
     T = int(n / years)
 
@@ -252,16 +252,13 @@ def inflow_periodic_ar_predict(residuals: np.ndarray, T: int, p: int) -> tuple:
         
         # 4. Fazer a previsão para todos os pontos do dia 'j' de uma vez
         residuals_ar_predict[indices + p] = X_j @ coeffs_j
-    
-    # Reformatar os coeficientes para ficarem iguais ao da versão original (T*p,)
-    flat_coeffs = all_coeffs.flatten()
 
     # Calcular as métricas finais
     final_residuals = residuals - residuals_ar_predict
     sq_error = np.mean(np.square(final_residuals[p:])) # O erro é calculado sobre as previsões
     residuals_std_b = np.std(final_residuals[p:])
 
-    return residuals_ar_predict, final_residuals, flat_coeffs, sq_error, residuals_std_b
+    return residuals_ar_predict, final_residuals, all_coeffs, sq_error, residuals_std_b
 
 
 # Simula um AR(p) por um determinado número de periodos, dados parâmetros e dados iniciais
@@ -288,13 +285,11 @@ def periodic_ar_p_future(data, phi, sigma, T, additional_years, p, last_observed
     current_data = list(data[-p:])
     future_residuals = []
     total_forecast_steps = additional_years * T
-    
-    phi_matrix = np.array(phi).reshape(T, p)
 
     for i in range(total_forecast_steps):
         current_period_index = (last_observed_period_idx + 1 + i) % T
         
-        current_phi = phi_matrix[current_period_index]
+        current_phi = phi[current_period_index]
 
         next_val = np.dot(current_phi, current_data[::-1]) + sigma * np.random.normal()
         

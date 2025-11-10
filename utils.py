@@ -60,7 +60,7 @@ def extract_data(reservoir):
 
 # carrega os dados a partir do nome do reservatório e unidade de tempo
 def load_data(reservoir, group_by):
-    inflow = pd.read_csv('data/hydro/' + reservoir + "_" + group_by + ".csv", sep=';')["val_vazaoincremental"].to_numpy()
+    inflow = pd.read_csv('data/hydro/' + reservoir + "_" + group_by + ".csv", sep=';')["val_vazaonatural"].to_numpy()
     n = len(inflow)
     T = int(n / years)
     return inflow, n, T
@@ -329,6 +329,9 @@ def plot(data_set, n, markers, colors, labels, title, xlable, ylable, filename):
     plt.tight_layout()
     plt.savefig(filename)
     plt.close()
+
+def kurtosis_by_period(data, years, T):
+    return np.sum(data.reshape((years, T))**4, axis = 0) - 3*np.ones(T)
 
 res = ["14 DE JULHO", "A. VERMELHA", "AIMORES", "ANTA", "APOLONIO SALES", "B. BONITA", "B.COQUEIROS", "BAGUARI", 
           "BAIXO IGUACU", "BALBINA", "BARIRI", "BARRA BRAUNA", "BARRA GRANDE", "BATALHA", "BELO MONTE", "BILL E PEDRAS", 
